@@ -20,21 +20,25 @@ def my_except_hook(exctype, value, traceback):
         print('There has been an error in the system')
 sys.excepthook = my_except_hook
 
-def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
-         N_starts=5,batch_size=100,learning_rate=.0001, epochs = 10,
+def main(input_datafile='oligo_malignant.txt',latent_dim=3,
+         N_starts=5,batch_size=100,learning_rate=.0001, epochs = 5,
          clip_norm=2,output_datafile='output',to_cluster= 1,n_genes=5000,
          gene_selection=0,selection_criteria='average',to_plot=1,verbose=0,
          relative_expression=0):
     
-    ## check value inputs
-    ## check inputs
+    
     # read datafile
-#    np.loadtxt('data_table.txt', skiprows=1)    
-    dict=scipy.io.loadmat(input_datafile)
-    x_t=dict['syn_expr'] # input expression matrix # of cells * # of genes
+    x_t=np.loadtxt(input_datafile)    
+#    dict=scipy.io.loadmat(input_datafile)
+#    x_t=dict['syn_expr'] # input expression matrix # of cells * # of genes
     x_t[np.isnan(x_t)]=0
     size=x_t.shape
+    
+    if size[1]<1000:
+        raise ValueError('Number of genes too small')
 
+    
+    ## check input parameters
     
     # Latent dim
     if not (type(latent_dim) is int):
@@ -67,6 +71,14 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
         raise ValueError('Number of genes should be atleast 1000')
     elif n_genes>size[1]:
         print('Using all the genes in the dataset')
+        
+    #epochs
+    if not (type(epochs) is int):
+        raise TypeError('Number of epochs must be an integer')
+    elif epochs<1:
+        raise ValueError('Number of epochs should be atleast 0')
+    elif epochs>100:
+        print('Very large number of epochs, training should take a lot of time')
     
     # output_datafile
     if not (type(output_datafile) is str):
@@ -86,30 +98,33 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
         en=np.zeros((size[1]))
         for i in range(0,size[1]):
             cv[i]=np.std(x_t[:,i])/np.mean(x_t[:,i]) # CV criteria
-            a[i]=np.mean(x_t[:,i]) # average value
+            a[i]=sum(x_t[:,i]) # average value
             hist, bin_edges=np.histogram(x_t[:,i],bins=100)
             pk=hist/sum(hist)
             en[i]=scipy.stats.entropy(pk)    # entropy        
         if selection_criteria=='average':
-            sorted_indices=sorted(range(len(a)), key=lambda k: a[k])
+            sorted_indices=sorted(range(len(a)), key=lambda k: a[k],reverse=True)
         elif selection_criteria == 'cv':
-            sorted_indices=sorted(range(len(cv)), key=lambda k: cv[k])
+            sorted_indices=sorted(range(len(cv)), key=lambda k: cv[k],reverse=True)
         elif selection_criteria == 'entropy':
-            sorted_indices=sorted(range(len(en)), key=lambda k: en[k])            
+            sorted_indices=sorted(range(len(en)), key=lambda k: en[k],reverse=True)            
         else:
             raise ValueError('Not a valid selection criteria, Refer to the readme file for valid selection criteria')
             
         x_t=x_t[:,sorted_indices[0:min(n_genes,size[1])]]
     
     if relative_expression:
-        x_t=x_t-np.mean(x_t,axis=1)
+        y=np.mean(x_t,axis=1)
+        x_t=x_t-np.tile(y,(min(n_genes,size[1]),1)).transpose()
         
     x_train=x_t   
-    size=x_train.shape
+
     # pad end cells for being compatible with batch size
     reminder=size[0]%batch_size
-    x_train=np.concatenate((x_train,x_train[(size[0]-reminder):size[0],:]),axis=0)
-
+    x_train=np.concatenate((x_train,x_train[(size[0]-batch_size+reminder):size[0],:]),axis=0)
+    size=x_train.shape
+    
+    
     # internal parameters
     original_dim = size[1]
     epsilon_std = 1.0
@@ -267,7 +282,10 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
                     plt.ylabel('Latent dim 2') 
                     plt.savefig(output_datafile+'fig_cluster.png')
         
-        scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final,'labels':labels,'bic':bic})
+        #scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final,'labels':labels,'bic':bic})
+        np.savetxt(output_datafile+'labels.txt',labels)
+        np.savetxt(output_datafile+'labels.txt',bic)
     
-    else:
-        scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final})
+    #else:
+        #scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final})
+    np.savetxt(output_datafile+'.txt',x_encoded_final)
