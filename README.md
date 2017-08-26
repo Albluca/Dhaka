@@ -7,6 +7,9 @@ input_datafile: Should be a txt file containing the expression/copy number matri
                 Should have atleast 1000 genes
                 Considers input as log2 transformed 
                 NaNs will be replaced with zeros
+
+
+
 latent_dim: should be integer input between 2 to 256, default = 3
 N_starts: should be integer input between 1 to 50, default =1
 batch_size: should be integer input between 10 to total number of cells, default:100
