@@ -7,7 +7,7 @@ input_datafile: Should be a txt file containing the expression/copy number matri
                 Should have atleast 1000 genes
                 Considers input as log2 transformed 
                 NaNs will be replaced with zeros
-
+Sample data_file: https://drive.google.com/file/d/0B3eDClHeP19MZzc4WDdtOFdvUDQ/view?usp=sharing
 
 
 latent_dim: should be integer input between 2 to 256, default = 3
