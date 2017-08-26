@@ -27,19 +27,63 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
          relative_expression=0):
     
     ## check value inputs
-    
-    # read datafile    
+    ## check inputs
+    # read datafile
+#    np.loadtxt('data_table.txt', skiprows=1)    
     dict=scipy.io.loadmat(input_datafile)
     x_t=dict['syn_expr'] # input expression matrix # of cells * # of genes
     x_t[np.isnan(x_t)]=0
     size=x_t.shape
+
     
+    # Latent dim
+    if not (type(latent_dim) is int):
+        raise TypeError('Latent dimensions must be an integer')
+    if latent_dim<2:
+        raise ValueError('Latent dimensions should be more than 2')
+    elif latent_dim>256:
+        raise ValueError('Latent dimensions should be less than 256')
+        
+    # N_starts
+    if not (type(N_starts) is int):
+        raise TypeError('Number of warm starts must be an integer')
+    elif N_starts<1:
+        raise ValueError('Number of warm starts must be more than 1')
+    elif N_starts>50:
+        raise Warning('Number of warm starts more than 50. Should take a long time to run.')    
+        
+    # batch_size
+    if not (type(batch_size) is int):
+        raise TypeError('Batch size must be an integer')
+    elif batch_size==0:
+        raise ValueError('Batch size should not be zero')
+    elif batch_size>size[0]:
+        raise ValueError('Batch size should not be larger than the total number of cells')    
+    
+    # n_genes
+    if not (type(n_genes) is int):
+        raise TypeError('Number of genes must be an integer')
+    elif n_genes<1000:
+        raise ValueError('Number of genes should be atleast 1000')
+    elif n_genes>size[1]:
+        print('Using all the genes in the dataset')
+    
+    # output_datafile
+    if not (type(output_datafile) is str):
+        raise TypeError('Output datafile name should be a string')
+    
+    if learning_rate>.1:
+        print('Learning rate too high')
+    
+    if clip_norm>10:
+        print('Clip norm too high')
+
     
     # gene selection
     if gene_selection:
-        a=[0 for i in range(size[1])]
-        cv=[0 for i in range(size[1])]
-        en=[0 for i in range(size[1])]
+        a=np.zeros((size[1]))  #[0 for i in range(size[1])]
+        cv=np.zeros((size[1]))
+        en=np.zeros((size[1]))
         for i in range(0,size[1]):
             cv[i]=np.std(x_t[:,i])/np.mean(x_t[:,i]) # CV criteria
             a[i]=np.mean(x_t[:,i]) # average value
@@ -53,7 +97,7 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
         elif selection_criteria == 'entropy':
             sorted_indices=sorted(range(len(en)), key=lambda k: en[k])            
         else:
-            print('Not a valid selection criteria, Refer to the readme file for valid selection criteria')
+            raise ValueError('Not a valid selection criteria, Refer to the readme file for valid selection criteria')
             
         x_t=x_t[:,sorted_indices[0:min(n_genes,size[1])]]
     
@@ -62,7 +106,6 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
         
     x_train=x_t   
     size=x_train.shape
-    
     # pad end cells for being compatible with batch size
     reminder=size[0]%batch_size
     x_train=np.concatenate((x_train,x_train[(size[0]-reminder):size[0],:]),axis=0)
@@ -77,8 +120,8 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
     color_iter = ['navy', 'turquoise', 'cornflowerblue','darkorange','mistyrose','seagreen','hotpink','purple','thistle','darkslategray']
     
     # required initializations
-    silhouette_avg=[0 for i in range(N_starts)]
-    all_x_encoded = np.asarray([[[0 for k in range(latent_dim)] for j in range(size[0])] for i in range(N_starts)])
+    silhouette_avg=np.zeros((N_starts))#[0 for i in range(N_starts)]
+    all_x_encoded = np.zeros((N_starts,size[0],latent_dim))#np.asarray([[[0 for k in range(latent_dim)] for j in range(size[0])] for i in range(N_starts)])
     all_x_encoded = all_x_encoded.astype(float)
     
     def sampling(args):
@@ -165,7 +208,8 @@ def main(input_datafile='Synthetic_data_2500.mat',latent_dim=3,
     x_encoded_final=x_encoded_final[0:size[0],:]
     
     if np.isnan(x_encoded_final).any():
-        print('NaNs, check input, learning rate, clip_norm parameters')
+        print(np.isnan(x_encoded_final).any())
+        raise Warning('NaNs, check input, learning rate, clip_norm parameters')
     
     if to_plot:
         if latent_dim>=3:
