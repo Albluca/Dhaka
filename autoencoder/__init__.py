@@ -49,10 +49,10 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
 #    dict=scipy.io.loadmat(input_datafile)
 #    x_t=dict['syn_expr'] # input expression matrix # of cells * # of genes
     x_t[np.isnan(x_t)]=0
-    size=x_t.shape
+    orig_size=x_t.shape
     
-    if size[1]<1000:
-        raise ValueError('Number of genes too small')
+    if orig_size[1]<1000:
+        print('Number of genes too small')
 
     
     ## check input parameters
@@ -60,8 +60,8 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
     # Latent dim
     if not (type(latent_dim) is int):
         raise TypeError('Latent dimensions must be an integer')
-    if latent_dim<2:
-        raise ValueError('Latent dimensions should be more than 2')
+    if latent_dim<1:
+        raise ValueError('Latent dimensions should be atleast 1')
     elif latent_dim>256:
         raise ValueError('Latent dimensions should be less than 256')
         
@@ -85,8 +85,9 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
     if not (type(n_genes) is int):
         raise TypeError('Number of genes must be an integer')
     elif n_genes<1000:
-        raise ValueError('Number of genes should be atleast 1000')
-    elif n_genes>size[1]:
+        print('Number of genes too small, Encoding might not be optimal')
+    elif n_genes>orig_size[1]:
+        n_genes=orig_size[1]
         print('Using all the genes in the dataset')
         
     #epochs
@@ -110,10 +111,10 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
     
     # gene selection
     if gene_selection:
-        a=np.zeros((size[1]))  #[0 for i in range(size[1])]
-        cv=np.zeros((size[1]))
-        en=np.zeros((size[1]))
-        for i in range(0,size[1]):
+        a=np.zeros((orig_size[1]))  #[0 for i in range(size[1])]
+        cv=np.zeros((orig_size[1]))
+        en=np.zeros((orig_size[1]))
+        for i in range(0,orig_size[1]):
             cv[i]=np.std(x_t[:,i])/np.mean(x_t[:,i]) # CV criteria
             a[i]=sum(x_t[:,i]) # average value
             hist, bin_edges=np.histogram(x_t[:,i],bins=100)
@@ -128,17 +129,21 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
         else:
             raise ValueError('Not a valid selection criteria, Refer to the readme file for valid selection criteria')
             
-        x_t=x_t[:,sorted_indices[0:min(n_genes,size[1])]]
+        x_t=x_t[:,sorted_indices[0:min(n_genes,orig_size[1])]]
     
     if relative_expression:
         y=np.mean(x_t,axis=1)
-        x_t=x_t-np.tile(y,(min(n_genes,size[1]),1)).transpose()
+    if gene_selection:
+        x_t=x_t-np.tile(y,(n_genes,1)).transpose()
+    else:
+        x_t=x_t-np.tile(y,(orig_size[1],1)).transpose()
+
         
     x_train=x_t   
 
     # pad end cells for being compatible with batch size
-    reminder=size[0]%batch_size
-    x_train=np.concatenate((x_train,x_train[(size[0]-batch_size+reminder):size[0],:]),axis=0)
+    reminder=orig_size[0]%batch_size
+    x_train=np.concatenate((x_train,x_train[(orig_size[0]-batch_size+reminder):orig_size[0],:]),axis=0)
     size=x_train.shape
     
     
@@ -237,7 +242,7 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
 
     index, value = max(enumerate(silhouette_avg), key=operator.itemgetter(1))
     x_encoded_final=all_x_encoded[index][:][:]
-    x_encoded_final=x_encoded_final[0:size[0],:]
+    x_encoded_final=x_encoded_final[0:orig_size[0],:]
     
     if np.isnan(x_encoded_final).any():
         print(np.isnan(x_encoded_final).any())
@@ -258,6 +263,13 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
             plt.xlabel('Latent dim 1')
             plt.ylabel('Latent dim 2') 
             plt.savefig(output_datafile+'fig_projection.png')
+        elif latent_dim==1:
+            n_range = range(0, orig_size[0])
+            fig=plt.figure(figsize=(6, 6))
+            plt.plot(n_range,x_encoded_final)
+            plt.xlabel('Cells')
+            plt.ylabel('Latent dim 1')
+            plt.savefig(output_datafile+'fig_projection.png') 
         
     if to_cluster:
         n_components_range = range(1, 10)
@@ -301,7 +313,7 @@ def main(input_datafile='oligo_malignant.txt',latent_dim=3,
         
         #scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final,'labels':labels,'bic':bic})
         np.savetxt(output_datafile+'labels.txt',labels)
-        np.savetxt(output_datafile+'labels.txt',bic)
+        np.savetxt(output_datafile+'bic.txt',bic)
     
     #else:
         #scipy.io.savemat(output_datafile+'.mat', {'vect':x_encoded_final})
